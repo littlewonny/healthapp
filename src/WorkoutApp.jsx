@@ -106,54 +106,71 @@ export default function WorkoutApp() {
       <h1 className="text-2xl font-bold mb-4">운동 도우미</h1>
 
       {!running && (
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={exerciseName}
-            onChange={(e) => setExerciseName(e.target.value)}
-            placeholder="운동 이름"
-            className="border p-2 w-full rounded"
-          />
-          <div className="grid grid-cols-4 gap-2">
+        <div className="space-y-2 text-left">
+          <div>
+            <label className="block text-sm font-medium">운동 이름</label>
             <input
-              type="number"
-              value={countInput}
-              onChange={(e) => setCountInput(e.target.value)}
-              placeholder="횟수"
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              value={setsInput}
-              onChange={(e) => setSetsInput(e.target.value)}
-              placeholder="세트 수"
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              value={restInput}
-              onChange={(e) => setRestInput(e.target.value)}
-              placeholder="휴식(초)"
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              value={intervalInput}
-              onChange={(e) => setIntervalInput(e.target.value)}
-              placeholder="간격(초)"
-              className="border p-2 rounded"
+              type="text"
+              value={exerciseName}
+              onChange={(e) => setExerciseName(e.target.value)}
+              placeholder="운동 이름"
+              className="border p-2 w-full rounded"
             />
           </div>
-          <input
-            type="text"
-            value={restMessageInput}
-            onChange={(e) => setRestMessageInput(e.target.value)}
-            placeholder="휴식 중 음성 문구"
-            className="border p-2 rounded w-full"
-          />
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+
+            <div>
+              <label className="block text-sm font-medium">횟수</label>
+              <input
+                type="number"
+                value={countInput}
+                onChange={(e) => setCountInput(e.target.value)}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">세트 수</label>
+              <input
+                type="number"
+                value={setsInput}
+                onChange={(e) => setSetsInput(e.target.value)}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">휴식(초)</label>
+              <input
+                type="number"
+                value={restInput}
+                onChange={(e) => setRestInput(e.target.value)}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">간격(초)</label>
+              <input
+                type="number"
+                value={intervalInput}
+                onChange={(e) => setIntervalInput(e.target.value)}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">휴식 중 음성 문구</label>
+            <input
+              type="text"
+              value={restMessageInput}
+              onChange={(e) => setRestMessageInput(e.target.value)}
+              className="border p-2 rounded w-full"
+            />
+          </div>
+
           <button
             onClick={addWorkout}
-            className="bg-green-500 text-white px-4 py-2 rounded w-full"
+            className="bg-green-500 text-white px-4 py-2 rounded w-full mt-2"
           >
             운동 추가
           </button>
