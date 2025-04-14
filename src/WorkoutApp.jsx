@@ -1,230 +1,183 @@
 
-import { useState, useEffect } from "react";
+// 향후 루틴 구조 확장을 위한 준비 - '운동 그룹'을 '동작'의 집합으로 유지하고, 상위에 루틴 추가
+import { useState, useEffect, useRef } from "react";
+import { Pencil, Trash2, Play, Pause, RotateCcw, XCircle } from "lucide-react";
 
 export default function WorkoutApp() {
-  const [workouts, setWorkouts] = useState(() => {
-    const saved = localStorage.getItem("workouts");
-    return saved ? JSON.parse(saved) : [];
+  const [routines, setRoutines] = useState([]); // 루틴 배열
+  const [currentRoutine, setCurrentRoutine] = useState(null); // 선택된 루틴
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    groups: [
+      {
+        name: "",
+        motions: [
+          {
+            name: "",
+            startPrompt: "",
+            startDelay: 1,
+            count: 10,
+            interval: 1,
+            sets: 1,
+            restTime: 5,
+            restPrompt: "수고하셨습니다!",
+          },
+        ],
+      },
+    ],
   });
-  const [exerciseName, setExerciseName] = useState("");
-  const [countInput, setCountInput] = useState(10);
-  const [setsInput, setSetsInput] = useState(3);
-  const [restInput, setRestInput] = useState(30);
-  const [intervalInput, setIntervalInput] = useState(1);
-  const [restMessageInput, setRestMessageInput] = useState("휴식 시간입니다. 잠시 쉬세요");
 
-  const [currentSet, setCurrentSet] = useState(1);
-  const [currentExercise, setCurrentExercise] = useState(0);
-  const [isResting, setIsResting] = useState(false);
-  const [count, setCount] = useState(0);
-  const [timer, setTimer] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [cancelWorkout, setCancelWorkout] = useState(false);
+  const [progressText, setProgressText] = useState("");
+  const ttsRef = useRef(null);
+  const isPausedRef = useRef(false);
+  const cancelWorkoutRef = useRef(false);
 
   useEffect(() => {
-    localStorage.setItem("workouts", JSON.stringify(workouts));
-  }, [workouts]);
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   useEffect(() => {
-    let interval;
-    if (running && !paused && workouts.length > 0) {
-      const intervalMs = (workouts[currentExercise].interval || 1) * 1000;
-      if (!isResting && count < workouts[currentExercise].count) {
-        interval = setInterval(() => {
-          setCount((prev) => {
-            speak(`${prev + 1}`);
-            return prev + 1;
-          });
-        }, intervalMs);
-      } else if (!isResting && count >= workouts[currentExercise].count) {
-        clearInterval(interval);
-        if (currentSet < workouts[currentExercise].sets) {
-          setIsResting(true);
-          setTimer(workouts[currentExercise].rest);
-          speak(workouts[currentExercise].restMessage || "휴식 시간입니다. 잠시 쉬세요");
-        } else {
-          moveToNextExercise();
+    cancelWorkoutRef.current = cancelWorkout;
+  }, [cancelWorkout]);
+
+  const handleInputChange = (e, gIdx = 0, mIdx = 0) => {
+    const { name, value } = e.target;
+    const numericFields = ["startDelay", "count", "interval", "sets", "restTime"];
+    const updatedGroups = [...formData.groups];
+    updatedGroups[gIdx].motions[mIdx] = {
+      ...updatedGroups[gIdx].motions[mIdx],
+      [name]: numericFields.includes(name) ? parseFloat(value) : value,
+    };
+    setFormData((prev) => ({ ...prev, groups: updatedGroups }));
+  };
+
+  const handleAddOrUpdate = () => {
+    if (currentRoutine !== null) {
+      const updated = [...routines];
+      updated[currentRoutine] = formData;
+      setRoutines(updated);
+    } else {
+      setRoutines([...routines, formData]);
+    }
+    setFormData({
+      name: "",
+      groups: [
+        {
+          name: "",
+          motions: [formData.groups[0].motions[0]]
+        },
+      ],
+    });
+    setShowForm(false);
+    setCurrentRoutine(null);
+  };
+
+  const handleEdit = (index) => {
+    setCurrentRoutine(index);
+    setFormData(routines[index]);
+    setShowForm(true);
+  };
+
+  const handleDelete = (index) => {
+    const updated = [...routines];
+    updated.splice(index, 1);
+    setRoutines(updated);
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      name: "",
+      groups: [
+        {
+          name: "",
+          motions: [{ ...formData.groups[0].motions[0] }],
+        },
+      ],
+    });
+    setShowForm(false);
+    setCurrentRoutine(null);
+  };
+
+  const speak = (text) => {
+    if (ttsRef.current) {
+      window.speechSynthesis.cancel();
+    }
+    const msg = new SpeechSynthesisUtterance(text);
+    ttsRef.current = msg;
+    window.speechSynthesis.speak(msg);
+  };
+
+  const waitFor = (ms) => new Promise((res) => setTimeout(res, ms));
+
+  const waitWhilePausedOrCancelled = async () => {
+    while (isPausedRef.current) {
+      await waitFor(200);
+    }
+    return !cancelWorkoutRef.current;
+  };
+
+  const runRoutine = async (routine) => {
+    setIsRunning(true);
+    setCancelWorkout(false);
+    cancelWorkoutRef.current = false;
+
+    for (const group of routine.groups) {
+      for (const motion of group.motions) {
+        setProgressText(`${motion.name} 시작 전 준비…`);
+        speak(motion.startPrompt);
+        await waitFor(motion.startDelay * 1000);
+
+        for (let set = 1; set <= motion.sets; set++) {
+          for (let i = 1; i <= motion.count; i++) {
+            if (cancelWorkoutRef.current) break;
+            setProgressText(`${motion.name} - ${set}세트 ${i}회`);
+            speak(i.toString());
+            for (let t = 0; t < motion.interval * 1000; t += 200) {
+              if (!(await waitWhilePausedOrCancelled())) return;
+              await waitFor(200);
+            }
+          }
+          if (set < motion.sets && !cancelWorkoutRef.current) {
+            setProgressText(`휴식 중…`);
+            speak("세트 완료");
+            speak(motion.restPrompt);
+            for (let t = 0; t < motion.restTime * 1000; t += 200) {
+              if (!(await waitWhilePausedOrCancelled())) return;
+              await waitFor(200);
+            }
+            speak("다시 시작합니다. 준비해 주세요.");
+          } else if (set === motion.sets) {
+            speak("세트 완료");
+          }
         }
       }
-      if (isResting && timer > 0) {
-        interval = setInterval(() => {
-          setTimer((prev) => prev - 1);
-        }, 1000);
-      } else if (isResting && timer <= 0) {
-        clearInterval(interval);
-        setIsResting(false);
-        setCount(0);
-        setCurrentSet((prev) => prev + 1);
-      }
     }
-    return () => clearInterval(interval);
-  }, [count, timer, isResting, running, paused]);
 
-  function moveToNextExercise() {
-    if (currentExercise < workouts.length - 1) {
-      setCurrentExercise((prev) => prev + 1);
-      setCurrentSet(1);
-      setCount(0);
-    } else {
-      speak("운동 완료! 수고하셨습니다!");
-      setRunning(false);
+    if (!cancelWorkoutRef.current) {
+      setProgressText("운동 완료!");
+      speak("운동이 완료되었습니다");
     }
-  }
-
-  function speak(text) {
-    const utter = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(utter);
-  }
-
-  function addWorkout() {
-    if (!exerciseName.trim()) return;
-    setWorkouts((prev) => [
-      ...prev,
-      {
-        name: exerciseName,
-        count: Number(countInput),
-        sets: Number(setsInput),
-        rest: Number(restInput),
-        interval: Number(intervalInput),
-        restMessage: restMessageInput,
-      },
-    ]);
-    setExerciseName("");
-    setCountInput(10);
-    setSetsInput(3);
-    setRestInput(30);
-    setIntervalInput(1);
-    setRestMessageInput("휴식 시간입니다. 잠시 쉬세요");
-  }
-
-  function deleteWorkout(index) {
-    setWorkouts((prev) => prev.filter((_, i) => i !== index));
-  }
+    setIsRunning(false);
+  };
 
   return (
-    <div className="p-4 sm:p-6 max-w-md mx-auto text-center space-y-4">
-      <h1 className="text-2xl font-bold mb-4">운동 도우미</h1>
+    <div className="p-4 max-w-xl mx-auto">
+      <h1 className="text-3xl font-extrabold mb-6 text-center text-blue-700">승곡 헬스 도우미</h1>
 
-      {!running && (
-        <div className="space-y-2 text-left">
-          <div>
-            <label className="block text-sm font-medium">운동 이름</label>
-            <input
-              type="text"
-              value={exerciseName}
-              onChange={(e) => setExerciseName(e.target.value)}
-              placeholder="운동 이름"
-              className="border p-2 w-full rounded"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-
-            <div>
-              <label className="block text-sm font-medium">횟수</label>
-              <input
-                type="number"
-                value={countInput}
-                onChange={(e) => setCountInput(e.target.value)}
-                className="border p-2 rounded w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">세트 수</label>
-              <input
-                type="number"
-                value={setsInput}
-                onChange={(e) => setSetsInput(e.target.value)}
-                className="border p-2 rounded w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">휴식(초)</label>
-              <input
-                type="number"
-                value={restInput}
-                onChange={(e) => setRestInput(e.target.value)}
-                className="border p-2 rounded w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">간격(초)</label>
-              <input
-                type="number"
-                value={intervalInput}
-                onChange={(e) => setIntervalInput(e.target.value)}
-                className="border p-2 rounded w-full"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">휴식 중 음성 문구</label>
-            <input
-              type="text"
-              value={restMessageInput}
-              onChange={(e) => setRestMessageInput(e.target.value)}
-              className="border p-2 rounded w-full"
-            />
-          </div>
-
-          <button
-            onClick={addWorkout}
-            className="bg-green-500 text-white px-4 py-2 rounded w-full mt-2"
-          >
-            운동 추가
-          </button>
-
-          <div className="text-left">
-            <h2 className="font-semibold mt-4">운동 목록</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              {workouts.map((w, i) => (
-                <li key={i} className="flex justify-between items-center">
-                  <span>{w.name} - {w.count}회 × {w.sets}세트 (휴식 {w.rest}초, 간격 {w.interval ?? 1}초)</span>
-                  <button
-                    onClick={() => deleteWorkout(i)}
-                    className="text-red-500 text-sm ml-2"
-                  >
-                    삭제
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {workouts.length > 0 && (
-            <button
-              onClick={() => {
-                setRunning(true);
-                setPaused(false);
-              }}
-              className="bg-blue-500 text-white px-4 py-2 rounded w-full mt-2"
-            >
-              운동 시작하기
-            </button>
-          )}
-        </div>
+      {!isRunning && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-xl"
+        >
+          + 루틴 추가
+        </button>
       )}
 
-      {running && workouts.length > 0 && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold">{workouts[currentExercise].name}</h2>
-            <p>{currentSet}세트 / {workouts[currentExercise].sets}세트</p>
-            {isResting ? (
-              <p className="text-yellow-500">휴식 중: {timer}초</p>
-            ) : (
-              <p className="text-green-500">카운트: {count}</p>
-            )}
-          </div>
-          <button
-            onClick={() => setPaused(!paused)}
-            className="bg-gray-600 text-white px-4 py-2 rounded"
-          >
-            {paused ? "계속하기" : "일시정지"}
-          </button>
-        </div>
-      )}
+      {/* 루틴 목록 표시 및 실행, 폼 등은 이후 계속 확장 가능 */}
     </div>
   );
 }
